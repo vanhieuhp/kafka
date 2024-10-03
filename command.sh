@@ -1,57 +1,29 @@
-#!/bin/bash
+KAFKA_CLUSTER_ID="$(bin/kafka-storage.sh random-uuid)"
+bin/kafka-storage.sh format -t $KAFKA_CLUSTER_ID -c config/kraft/server.properties
+bin/kafka-server-start.sh config/kraft/server.properties
 
-# Variables
-KAFKA_BIN_DIR="/opt/kafka/bin"
-TOPIC_NAME="demo-topic"
-PARTITIONS=1
-REPLICATION_FACTOR=1
+Step 3: Create a topic to store your events
+bin/kafka-topics.sh --create --topic quickstart-events --bootstrap-server localhost:9092
+bin/kafka-topics.sh --describe --topic quickstart-events --bootstrap-server localhost:9092
 
-# Create Kafka topic
-$KAFKA_BIN_DIR/kafka-topics.sh --create --bootstrap-server localhost:9092 --replication-factor $REPLICATION_FACTOR --partitions $PARTITIONS --topic $TOPIC_NAME
+bin/kafka-topics.sh --create --bootstrap-server localhost:9092 --replication-factor 1 --partitions 1 --topic msql.history
 
-echo "Topic '$TOPIC_NAME' created successfully."
+Step 4: Write some events into the topic
+bin/kafka-console-producer.sh --topic quickstart-events --bootstrap-server localhost:9092
 
-# Configuration
-kafka-topics --bootstrap-server localhost:9092 --topic my-topic --describe
+Step 5: Read the events
+bin/kafka-console-consumer.sh --topic quickstart-events --from-beginning --bootstrap-server localhost:9092
 
-kafka-configs --bootstrap-server localhost:9092 --entity-type topics --entity-name my-topic --describe
+Step 6: Import/export your data as streams of events with Kafka Connect
+echo "plugin.path=libs/connect-file-3.8.0.jar" >> config/connect-standalone.properties
 
-kafka-configs --bootstrap-server localhost:9092 --entity-type topics --entity-name my-topic --alter --add-config min.insync.replicas=2
+bin/connect-standalone.sh config/connect-standalone.properties config/connect-file-source.properties config/connect-file-sink.properties
 
-kafka-configs --bootstrap-server localhost:9092 --entity-type topics --entity-name my-topic --alter --delete-config min.insync.replicas
+## Kafka connect
+curl -H "Accept:application/json" localhost:8083/connectors/
 
-# Producer
-kafka-console-producer --bootstrap-server localhost:9092 --topic my-topic
-kafka-console-producer --bootstrap-server localhost:9092 --topic my-topic --producer-property acks=all
+bin/connect-standalone.sh config/connect-standalone.properties config/connect-debezium-mysql.properties
 
-kafka-console-producer --bootstrap-server localhost:9092 --topic my-topic --property parse.key=true --property key.separator=:
+docker run -it --rm --name watcher --link zookeeper:zookeeper --link kafka:kafka quay.io/debezium/kafka:2.7 watch-topic -a -k dbserver1.inventory.customers
 
-# Topics
-kafka-topics --create --bootstrap-server localhost:9092 --topic my-topic --replication-factor 1 --partitions 3
-
-kafka-topics --create --bootstrap-server localhost:9092 --topic my-topic --replication-factor 1 --partitions 1
-
-kafka-topics --create --bootstrap-server localhost:9092 --topic my-topic --replication-factor 1 --partition 3
-
-kafka-topics --delete --bootstrap-server localhost:9092 --topic my-topic
-
-kafka-topics --list --bootstrap-server localhost:9092
-
-# Consumer
-kafka-console-consumer --bootstrap-server localhost:9092 --topic my-topic
-kafka-console-consumer --bootstrap-server localhost:9092 --topic my-topic --from-beginning
-kafka-console-consumer --bootstrap-server localhost:9092 --topic my-topic --from-beginning --group my-group
-kafka-console-consumer --bootstrap-server localhost:9092 --topic my-topic \
---formatter kafka.tools.DefaultMessageFormatter \
---property print.timestamp=true \
---property print.key=true \
---property print.value=true \
---property print.partition=true \
---from-beginning
-
-# Consumer Groups
-kafka-consumer-groups --bootstrap-server localhost:9092 --list
-kafka-consumer-groups --bootstrap-server localhost:9092 --describe --group group-name
-kafka-consumer-groups --bootstrap-server localhost:9092 --delete --group group-name
-kafka-consumer-groups --bootstrap-server localhost:9092 --group group-name --reset-offsets --to-earliest --topic my-topic --dry-run
-kafka-consumer-groups --bootstrap-server localhost:9092 --group group-name --reset-offsets --to-earliest --topic my-topic --execute
+bin/kafka-console-consumer.sh --topic mongodb.test.users --bootstrap-server localhost:9092
