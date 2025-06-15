@@ -1,0 +1,51 @@
+spring:
+  application:
+    name: kafka-consumer-detector
+
+  kafka:
+    bootstrap-servers: localhost:9092
+    security:
+      protocol: PLAINTEXT
+    consumer:
+      group-id: wallet-detector
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      auto-offset-reset: latest
+      enable-auto-commit: true
+      properties:
+        spring.json.trusted.package: "*"
+        spring.json.use.type.headers: false
+        partition.assignment.strategy: org.apache.kafka.clients.consumer.CooperativeStickyAssignor
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+      retries: 30
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+
+kafka:
+  transaction:
+    topic: wallet-transactions-dev
+    concurrency: 3
+
+  rule-hit:
+    topic: safety-rule-hits-dev
+
+rules:
+  max-transactions-last-minutes:
+    id: MAX_TRANSACTIONS_LAST_MINUTES
+    minutes: 1
+    max-transactions: 2
+
+  max-amount-latest-minutes: #TODO
+    id: MAX_TRANSACTIONS_LAST_MINUTES
+    minutes: 5
+    max-amount: 1000000000
+
+server:
+  port: 8081
